@@ -92,4 +92,66 @@ func TestTasksHandler(t *testing.T) {
 				createdTask, newTask)
 		}
 	})
+
+	t.Run("PUT task", func(t *testing.T) {
+		// Using existing task with ID 1 from the mock data
+		updatedTask := Task{
+			ID:          1,
+			Title:       "Updated Task 1",
+			Description: "Updated Description 1",
+			Completed:   true,
+		}
+		body, _ := json.Marshal(updatedTask)
+		req, err := http.NewRequest("PUT", "/tasks/1", bytes.NewBuffer(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		handler := http.HandlerFunc(tasksHandler)
+		handler.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusOK)
+		}
+
+		// Verify the task was updated in the database
+		var task Task
+		err = db.QueryRow("SELECT id, title, description, completed FROM tasks WHERE id = 1").Scan(&task.ID, &task.Title, &task.Description, &task.Completed)
+		if err != nil {
+			t.Fatalf("Failed to retrieve updated task from DB: %v", err)
+		}
+
+		if !reflect.DeepEqual(task, updatedTask) {
+			t.Errorf("task was not updated correctly in DB: got %+v want %+v", task, updatedTask)
+		}
+	})
+
+	t.Run("DELETE task", func(t *testing.T) {
+		// Let's delete the task with ID 2
+		req, err := http.NewRequest("DELETE", "/tasks/2", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rr := httptest.NewRecorder()
+		handler := http.HandlerFunc(tasksHandler)
+		handler.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusNoContent {
+			t.Errorf("handler returned wrong status code: got %v want %v",
+				status, http.StatusNoContent)
+		}
+
+		// Verify the task was deleted from the database
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE id = 2").Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to query DB for deleted task: %v", err)
+		}
+		if count > 0 {
+			t.Errorf("task was not deleted from DB")
+		}
+	})
 }

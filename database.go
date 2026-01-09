@@ -74,3 +74,13 @@ func seedTasksDB() error {
 	}
 	return nil
 }
+
+func updateTaskDB(id int, task Task) error {
+	_, err := db.Exec("UPDATE tasks SET title = ?, description = ?, completed = ? WHERE id = ?", task.Title, task.Description, task.Completed, id)
+	return err
+}
+
+func deleteTaskDB(id int) error {
+	_, err := db.Exec("DELETE FROM tasks WHERE id = ?", id)
+	return err
+}
