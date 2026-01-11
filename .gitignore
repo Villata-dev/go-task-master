@@ -22,3 +22,5 @@ go.work
 
 # Compiled application
 myapp
+task-master
+*.db
