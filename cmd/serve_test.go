@@ -1,8 +1,10 @@
-package main
+package cmd
 
 import (
 	"bytes"
 	"encoding/json"
+	"go-task-master/internal/db"
+	"go-task-master/internal/models"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -11,27 +13,27 @@ import (
 
 func TestTasksHandler(t *testing.T) {
 	// Initialize the database for testing
-	if err := initDB(":memory:"); err != nil {
+	if err := db.InitDB(":memory:"); err != nil {
 		t.Fatalf("Failed to initialize in-memory database: %v", err)
 	}
-	defer db.Close()
+	defer db.DB.Close()
 
 	// Seed the database for GET test
-	mockTasks := []Task{
+	mockTasks := []models.Task{
 		{ID: 1, Title: "Test Task 1", Description: "Description 1", Completed: false},
 		{ID: 2, Title: "Test Task 2", Description: "Description 2", Completed: true},
 	}
 
 	for _, task := range mockTasks {
 		// Note: The ID is auto-incremented by the DB, so we don't insert it.
-		_, err := db.Exec("INSERT INTO tasks (title, description, completed) VALUES (?, ?, ?)", task.Title, task.Description, task.Completed)
+		_, err := db.DB.Exec("INSERT INTO tasks (title, description, completed) VALUES (?, ?, ?)", task.Title, task.Description, task.Completed)
 		if err != nil {
 			t.Fatalf("Failed to insert mock data: %v", err)
 		}
 	}
 
 	t.Run("GET tasks", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "/tasks", nil)
+		req, err := http.NewRequest("GET", "/tasks/", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,7 +47,7 @@ func TestTasksHandler(t *testing.T) {
 				status, http.StatusOK)
 		}
 
-		var actualTasks []Task
+		var actualTasks []models.Task
 		if err := json.NewDecoder(rr.Body).Decode(&actualTasks); err != nil {
 			t.Fatalf("could not decode response: %v", err)
 		}
@@ -57,13 +59,13 @@ func TestTasksHandler(t *testing.T) {
 	})
 
 	t.Run("POST task", func(t *testing.T) {
-		newTask := Task{
+		newTask := models.Task{
 			Title:       "New Task",
 			Description: "New Description",
 			Completed:   false,
 		}
 		body, _ := json.Marshal(newTask)
-		req, err := http.NewRequest("POST", "/tasks", bytes.NewBuffer(body))
+		req, err := http.NewRequest("POST", "/tasks/", bytes.NewBuffer(body))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +79,7 @@ func TestTasksHandler(t *testing.T) {
 				status, http.StatusCreated)
 		}
 
-		var createdTask Task
+		var createdTask models.Task
 		if err := json.NewDecoder(rr.Body).Decode(&createdTask); err != nil {
 			t.Fatalf("could not decode response: %v", err)
 		}
@@ -95,7 +97,7 @@ func TestTasksHandler(t *testing.T) {
 
 	t.Run("PUT task", func(t *testing.T) {
 		// Using existing task with ID 1 from the mock data
-		updatedTask := Task{
+		updatedTask := models.Task{
 			ID:          1,
 			Title:       "Updated Task 1",
 			Description: "Updated Description 1",
@@ -117,8 +119,8 @@ func TestTasksHandler(t *testing.T) {
 		}
 
 		// Verify the task was updated in the database
-		var task Task
-		err = db.QueryRow("SELECT id, title, description, completed FROM tasks WHERE id = 1").Scan(&task.ID, &task.Title, &task.Description, &task.Completed)
+		var task models.Task
+		err = db.DB.QueryRow("SELECT id, title, description, completed FROM tasks WHERE id = 1").Scan(&task.ID, &task.Title, &task.Description, &task.Completed)
 		if err != nil {
 			t.Fatalf("Failed to retrieve updated task from DB: %v", err)
 		}
@@ -146,7 +148,7 @@ func TestTasksHandler(t *testing.T) {
 
 		// Verify the task was deleted from the database
 		var count int
-		err = db.QueryRow("SELECT COUNT(*) FROM tasks WHERE id = 2").Scan(&count)
+		err = db.DB.QueryRow("SELECT COUNT(*) FROM tasks WHERE id = 2").Scan(&count)
 		if err != nil {
 			t.Fatalf("Failed to query DB for deleted task: %v", err)
 		}
